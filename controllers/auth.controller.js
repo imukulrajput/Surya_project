@@ -64,8 +64,10 @@ export const logoutUser = async (req, res) => {
         );
 
         const options = {
-            httpOnly: true,
-            secure: true
+          httpOnly: true,
+          secure: true,       // Must be TRUE because your backend is HTTPS
+          sameSite: "None",   // Must be NONE to allow cross-site (Localhost -> Render)
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         };
 
         return res
