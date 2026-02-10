@@ -47,7 +47,14 @@ export const verifySocialAccount = async (req, res) => {
        
         browser = await puppeteer.launch({ 
             headless: "new", 
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'] 
+           args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // <--- CRITICAL for Render/Docker
+                '--disable-gpu',
+                '--no-first-run',
+                '--no-zygote',
+            ] 
         });
 
         const page = await browser.newPage();
