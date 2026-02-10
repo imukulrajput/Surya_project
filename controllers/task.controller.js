@@ -7,17 +7,17 @@ export const getDailyTasks = async (req, res) => {
     const { accountId } = req.query;
     const today = new Date().toISOString().split('T')[0];
 
+    // 1. Get all active tasks for today
     const tasks = await Task.find({ batchDate: today, active: true }).lean();
 
     if (!tasks.length) {
       return res.status(200).json({ message: "No tasks available yet.", tasks: [] });
     }
 
-    let completedTaskIds = [];
+    // 2. Create a lookup object for statuses
+    let submissionStatusMap = {}; // Example: { "taskId123": "Approved", "taskId456": "Pending" }
     
-  
     if (accountId) {
-     
       const accountExists = req.user.linkedAccounts.find(
         acc => acc._id.toString() === accountId
       );
@@ -26,23 +26,33 @@ export const getDailyTasks = async (req, res) => {
         return res.status(403).json({ message: "Access denied. Not your account." });
       }
 
+      // Fetch submissions for this specific account
       const submissions = await Submission.find({ 
         userId: req.user._id, 
         linkedAccountId: accountId, 
-        status: { $in: ["Pending", "Approved"] } 
-      }).select("taskId");
+        // We want to see Pending, Approved, AND Rejected statuses
+        status: { $in: ["Pending", "Approved", "Rejected"] } 
+      }).select("taskId status");
       
-      completedTaskIds = submissions.map(s => s.taskId.toString());
+      // Map task IDs to their status string
+      submissions.forEach(sub => {
+          submissionStatusMap[sub.taskId.toString()] = sub.status;
+      });
     }
 
+    // 3. Attach the specific status to each task
     const tasksWithStatus = tasks.map(task => ({
       ...task,
-      isCompleted: completedTaskIds.includes(task._id.toString())
+      // If status exists in map, use it. Otherwise, null.
+      status: submissionStatusMap[task._id.toString()] || null, 
+      // Keep isCompleted for backward compatibility (true if Approved or Pending)
+      isCompleted: ["Pending", "Approved"].includes(submissionStatusMap[task._id.toString()])
     }));
 
     return res.status(200).json({ 
       tasks: tasksWithStatus,
-      completedCount: completedTaskIds.length, 
+      // Count is based on approved or pending
+      completedCount: Object.values(submissionStatusMap).filter(s => ["Pending", "Approved"].includes(s)).length,
       totalCount: tasks.length 
     });
 
