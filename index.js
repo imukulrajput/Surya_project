@@ -15,10 +15,14 @@ const app = express();
 
 app.use(express.json({ limit: "16kb" }));
 app.use(cookieParser());
-app.use(cors({        
-  origin: "http://localhost:3000",
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://surya-frontend-steel.vercel.app"
+  ],
   credentials: true
 }));
+  
 
 // Routes
 
