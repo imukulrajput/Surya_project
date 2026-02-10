@@ -37,6 +37,7 @@ export const registerUser = async (req, res) => {
     const options = {
       httpOnly: true,
       secure: true, // Set to true in production
+      sameSite: "None"
     };
 
     return res.status(201)
@@ -92,7 +93,12 @@ export const loginUser = async (req, res) => {
 
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id);
 
-    const options = { httpOnly: true, secure: true };
+    // --- THE FIX IS HERE ---
+    const options = { 
+        httpOnly: true, 
+        secure: true, 
+        sameSite: "None" // <--- YOU MUST ADD THIS
+    };
 
     return res
         .status(200)

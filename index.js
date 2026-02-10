@@ -24,7 +24,7 @@ app.use(cors({
 
 app.get("/", (req, res) => res.send("API running"));
  
-app.use("/api/v1/users", authRoutes);     
+app.use("/api/v1/users", authRoutes);      
 app.use("/api/v1/social", socialRoutes);
 app.use("/api/v1/tasks", taskRoutes);
 app.use("/api/v1/support", supportRoutes); // <--- ADD THIS   
