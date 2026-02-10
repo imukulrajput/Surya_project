@@ -27,7 +27,7 @@ app.use("/api/v1/tasks", taskRoutes);
 app.use("/api/v1/support", supportRoutes); // <--- ADD THIS   
 app.use("/api/v1/admin", adminRoutes);  
 
-app.use("/api/v1/wallet", walletRouter);  
+app.use("/api/v1/wallet", walletRouter);     
 
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
