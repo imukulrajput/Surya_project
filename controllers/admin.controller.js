@@ -5,6 +5,29 @@ import { Support } from "../models/Support.js";
 import { Withdrawal } from "../models/Withdrawal.js";
 import { SystemSetting } from "../models/SystemSetting.js";
 
+// --- HELPER: Get Current Date String (YYYY-MM-DD) in IST ---
+const getISTDateString = () => {
+  const date = new Date();
+  // IST is UTC + 5:30. We add the offset to the current UTC time.
+  const istOffset = 5.5 * 60 * 60 * 1000; 
+  const istDate = new Date(date.getTime() + istOffset);
+  return istDate.toISOString().split('T')[0];
+};
+
+// --- HELPER: Get Start of Day (00:00:00) IST in UTC format ---
+const getISTStartOfDay = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  
+  // 1. Get current time in IST
+  const istDate = new Date(now.getTime() + istOffset);
+  
+  // 2. Set time to midnight
+  istDate.setUTCHours(0, 0, 0, 0);
+  
+  // 3. Subtract offset to get the UTC timestamp that corresponds to IST midnight
+  return new Date(istDate.getTime() - istOffset);
+};
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -12,17 +35,16 @@ export const getDashboardStats = async (req, res) => {
     const pendingSubmissions = await Submission.countDocuments({ status: "Pending" });
     const pendingWithdrawals = await Withdrawal.countDocuments({ status: "Pending" });
     
-   
     const walletStats = await User.aggregate([
       { $group: { _id: null, total: { $sum: "$walletBalance" } } }
     ]);
 
-    // Today's Activity
-    const startOfDay = new Date();
-    startOfDay.setHours(0,0,0,0);
+    // Fixed: Today's Activity (Using IST Midnight)
+    const startOfDayIST = getISTStartOfDay();
+
     const tasksToday = await Submission.countDocuments({ 
         status: "Approved", 
-        updatedAt: { $gte: startOfDay } 
+        updatedAt: { $gte: startOfDayIST } 
     });
 
     return res.status(200).json({
@@ -43,9 +65,10 @@ export const getDashboardStats = async (req, res) => {
 export const createDailyBatch = async (req, res) => {
   try {
     const { tasks } = req.body; 
-    const batchDate = new Date().toISOString().split('T')[0];
+    
+    // Fixed: Use IST Date String so batches made at 1 AM work for the current day
+    const batchDate = getISTDateString(); 
 
- 
     const rewardSetting = await SystemSetting.findOne({ key: "reward_per_task" });
     const rewardAmount = rewardSetting ? Number(rewardSetting.value) : 2.5;
 
@@ -57,7 +80,7 @@ export const createDailyBatch = async (req, res) => {
     }));
 
     await Task.insertMany(tasksWithDate);
-    return res.status(201).json({ message: `Created ${tasks.length} tasks.` });
+    return res.status(201).json({ message: `Created ${tasks.length} tasks for date: ${batchDate}` });
   } catch (error) {
     return res.status(500).json({ message: "Upload failed" });
   }
@@ -65,8 +88,11 @@ export const createDailyBatch = async (req, res) => {
 
 export const getTasksByDate = async (req, res) => {
     try {
+        // Fixed: Default to IST date if no date provided
         const { date } = req.query; // YYYY-MM-DD
-        const tasks = await Task.find({ batchDate: date });
+        const searchDate = date || getISTDateString();
+
+        const tasks = await Task.find({ batchDate: searchDate });
         return res.status(200).json({ tasks });
     } catch (error) {
         return res.status(500).json({ message: "Fetch failed" });
@@ -145,7 +171,7 @@ export const getAllUsers = async (req, res) => {
 export const toggleUserBan = async (req, res) => {
     try {
         const { userId, banned } = req.body; 
-        await User.findByIdAndUpdate(userId, { refreshToken: null }); 
+        await User.findByIdAndUpdate(userId, { refreshToken: banned ? null : undefined }); // Assuming removing refresh token logs them out/bans them
         return res.status(200).json({ message: `User ${banned ? 'Banned' : 'Unbanned'}` });
     } catch (error) {
         return res.status(500).json({ message: "Action failed" });
@@ -260,10 +286,8 @@ export const exportWithdrawals = async (req, res) => {
     try {
         const withdrawals = await Withdrawal.find({ status: "Pending" }).populate("userId", "fullName");
         
-        
         let csv = "User Name,Amount,Method,Details,Date\n";
         
-       
         withdrawals.forEach(w => {
             csv += `${w.userId.fullName},${w.amount},${w.method},${w.details},${w.createdAt}\n`;
         });
@@ -274,5 +298,4 @@ export const exportWithdrawals = async (req, res) => {
     } catch (error) {
         return res.status(500).json({ message: "Export failed" });
     }
-};
-
+};    

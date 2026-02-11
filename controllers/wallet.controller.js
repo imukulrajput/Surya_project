@@ -47,7 +47,7 @@ export const requestWithdrawal = async (req, res) => {
 
   
     const user = await User.findById(userId);
-    if (user.walletBalance < amount) {  
+    if (user.walletBalance < amount) {
       return res.status(400).json({ message: "Insufficient wallet balance" });
     }
 

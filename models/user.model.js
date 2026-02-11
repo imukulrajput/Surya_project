@@ -3,9 +3,12 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
 const socialAccountSchema = new mongoose.Schema({
-    platform: { type: String, required: true }, // e.g., 'Twitter', 'Instagram'
+    platform: { type: String, required: true }, 
     profileUrl: { type: String, required: true },
-    linkedAt: { type: Date, default: Date.now }
+    username: { type: String }, // <--- Add this field
+    linkedAt: { type: Date, default: Date.now },
+    isVerified: { type: Boolean, default: false },
+    accountId: { type: String }
 });
    
 const userSchema = new mongoose.Schema({

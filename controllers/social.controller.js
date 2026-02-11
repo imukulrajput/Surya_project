@@ -1,7 +1,6 @@
-import crypto from "crypto";
-import puppeteer from "puppeteer";
 import { User } from "../models/user.model.js";
-
+import crypto from "crypto";
+import { extractUsernameFromProfileUrl } from "../utils/platformChecker.js"; 
 
 export const generateVerificationCode = async (req, res) => {
     try {
@@ -15,7 +14,7 @@ export const generateVerificationCode = async (req, res) => {
         return res.status(200).json({ 
             message: "Code generated", 
             code, 
-            expiresAt 
+            expiresAt    
         });
     } catch (error) {
         return res.status(500).json({ message: "Error generating code" });
@@ -23,82 +22,65 @@ export const generateVerificationCode = async (req, res) => {
 };
 
 export const verifySocialAccount = async (req, res) => {
-    let browser = null;
     try {
         const { platform, profileUrl } = req.body;
-        const verificationCode = req.user.socialVerification?.code; 
-
-        if (!verificationCode) {
-            return res.status(400).json({ message: "Please generate a code first." });
+        
+        if (!profileUrl || !platform) {
+            return res.status(400).json({ message: "Profile URL is required." });
         }
 
-        const user = await User.findById(req.user._id);
-        const isDuplicate = user.linkedAccounts.some(
-            (acc) => acc.platform === platform && acc.profileUrl === profileUrl
-        );
+        // 1. Extract Username from Profile URL
+        const handle = extractUsernameFromProfileUrl(profileUrl, platform);
 
-        if (isDuplicate) {
-            return res.status(409).json({ message: "This account is already linked!" });
+        if (!handle) {
+             return res.status(400).json({ 
+                message: `Invalid ${platform} URL.`, 
+                hint: `Check format: ${platform === 'Moj' ? 'mojapp.in/@user' : 'sharechat.com/profile/user'}`
+            });
         }
-   
 
-        console.log(`🔍 Verifying: ${profileUrl}`);
-
-       
-        browser = await puppeteer.launch({ 
-            headless: "new", 
-           args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // <--- CRITICAL for Render/Docker
-                '--disable-gpu',
-                '--no-first-run',
-                '--no-zygote',
-            ] 
+        // --- CRITICAL SECURITY FIX: GLOBAL CHECK ---
+        // Check if ANY user (not just me) has already claimed this Profile URL or Username
+        const existingClaim = await User.findOne({
+            "linkedAccounts": {
+                $elemMatch: {
+                    platform: platform,   
+                    $or: [
+                        { profileUrl: profileUrl },
+                        { username: handle }
+                    ]
+                }
+            }
         });
 
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-        try {
-            await page.goto(profileUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        } catch (e) {
-            console.log("Navigation timeout, checking body anyway...");
+        if (existingClaim) {
+            // If the user found is ME, it's a duplicate. If it's someone else, it's theft.
+            if (existingClaim._id.toString() === req.user._id.toString()) {
+                 return res.status(409).json({ message: "You have already linked this account!" });
+            } else {
+                 return res.status(409).json({ message: "This social profile is already claimed by another user!" });
+            }
         }
+        // --- END FIX ---
 
-        
-        await new Promise(r => setTimeout(r, 5000)); 
+        await User.findByIdAndUpdate(req.user._id, {
+            $push: {
+                linkedAccounts: {
+                    platform,
+                    profileUrl,
+                    username: handle, 
+                    isVerified: true,  
+                    linkedAt: new Date(),
+                    accountId: new Date().getTime().toString()
+                }
+            },
+            $unset: { socialVerification: 1 } 
+        });
 
-        const pageText = await page.evaluate(() => document.body.innerText);
-
-        if (pageText.includes(verificationCode)) {
-            
-          
-            await User.findByIdAndUpdate(req.user._id, {
-                $push: {
-                    linkedAccounts: {
-                        platform,
-                        profileUrl,
-                        isVerified: true,
-                        linkedAt: new Date(),
-                        accountId: new Date().getTime().toString()
-                    }
-                },
-                $unset: { socialVerification: 1 } 
-            });
-
-            return res.status(200).json({ message: "Account Verified Successfully!" });
-        } else {
-            return res.status(400).json({ 
-                message: "Verification code not found.",
-                hint: "Make sure your profile is Public and the code is in your Bio."
-            });
-        }
+        return res.status(200).json({ message: "Account Linked Successfully!" });
 
     } catch (error) {
-        console.error("Puppeteer Error:", error);
-        return res.status(500).json({ message: "Verification failed. Server Error." });
-    } finally {
-        if (browser) await browser.close();
+        console.error("Link Error:", error);
+        return res.status(500).json({ message: "Linking failed. Server Error." });
     }
 };
