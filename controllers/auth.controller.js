@@ -88,6 +88,11 @@ export const loginUser = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User does not exist" });
 
+
+    if (user.isBanned) {
+        return res.status(403).json({ message: "Your account has been banned. Contact support." });
+    }
+    
     const isPasswordValid = await user.isPasswordCorrect(password);
     if (!isPasswordValid) return res.status(401).json({ message: "Invalid credentials" });
 

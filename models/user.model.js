@@ -51,6 +51,12 @@ const userSchema = new mongoose.Schema({
 
     forgotPasswordToken: String,
     forgotPasswordTokenExpiry: Date, 
+
+    isBanned: {
+    type: Boolean,
+    default: false
+},
+
 }, { timestamps: true }); 
 
 // Hash password before saving

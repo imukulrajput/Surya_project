@@ -20,6 +20,10 @@ export const verifyJWT = async (req, res, next) => {
             return res.status(401).json({ message: "Invalid Access Token" });
         }
 
+        if (user.isBanned) {
+        return res.status(403).json({ message: "Your account has been banned. Contact support." });
+    }
+
         
         req.user = user;
         next();

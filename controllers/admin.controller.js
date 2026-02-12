@@ -181,27 +181,63 @@ export const getPendingSubmissions = async (req, res) => {
 export const getAllUsers = async (req, res) => {
     try {
         const { search } = req.query;
-        let query = { role: "user" };
+        
+        // 1. Build Search Query
+        let matchStage = { role: "user" };
         if (search) {
-            query = { 
-                ...query, 
+            matchStage = {
+                ...matchStage,
                 $or: [
                     { fullName: { $regex: search, $options: 'i' } },
                     { email: { $regex: search, $options: 'i' } }
-                ] 
+                ]
             };
         }
-        const users = await User.find(query).select("-password");
+
+        // 2. Aggregation Pipeline (Join Users + PayoutMethods)
+        const users = await User.aggregate([
+            { $match: matchStage }, // Filter users first
+            {
+                $lookup: {
+                    from: "payoutmethods",       // The collection name in MongoDB (lowercase plural)
+                    localField: "_id",           // User's ID
+                    foreignField: "userId",      // The field in PayoutMethod
+                    as: "bankInfo"               // What we want to call it in the result
+                }
+            },
+            {
+                $project: {
+                    password: 0,           // Hide sensitive data
+                    refreshToken: 0,
+                    forgotPasswordToken: 0,
+                    // Take the first item from the array (since users usually have 1 active method)
+                    bankDetails: { $arrayElemAt: ["$bankInfo", 0] },
+                    fullName: 1,
+                    email: 1,
+                    walletBalance: 1,
+                    linkedAccounts: 1,
+                    role: 1,
+                    createdAt: 1
+                }
+            },
+            { $sort: { createdAt: -1 } } // Show newest users first
+        ]);
+
         return res.status(200).json({ users });
     } catch (error) {
+        console.error(error);
         return res.status(500).json({ message: "Fetch users failed" });
     }
 };
 
+
 export const toggleUserBan = async (req, res) => {
     try {
         const { userId, banned } = req.body; 
-        await User.findByIdAndUpdate(userId, { refreshToken: banned ? null : undefined });
+        await User.findByIdAndUpdate(userId, { 
+            isBanned: banned,
+            refreshToken: banned ? null : undefined 
+        });
         return res.status(200).json({ message: `User ${banned ? 'Banned' : 'Unbanned'}` });
     } catch (error) {
         return res.status(500).json({ message: "Action failed" });
