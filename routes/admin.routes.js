@@ -14,6 +14,7 @@ router.get("/stats", Admin.getDashboardStats);
 router.post("/batch-create", Admin.createDailyBatch);
 router.get("/tasks", Admin.getTasksByDate);
 router.delete("/tasks/:id", Admin.deleteTask);
+router.put("/tasks/:id", Admin.updateTask);           // <--- NEW: Update One
 
 // Approvals
 router.get("/submissions", Admin.getPendingSubmissions);

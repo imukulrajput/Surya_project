@@ -5,10 +5,14 @@ import bcrypt from "bcrypt";
 const socialAccountSchema = new mongoose.Schema({
     platform: { type: String, required: true }, 
     profileUrl: { type: String, required: true },
-    username: { type: String }, // <--- Add this field
+    username: { type: String }, 
     linkedAt: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
-    accountId: { type: String }
+    accountId: { type: String },
+    
+    // --- NEW FIELDS FOR COOLDOWN LOGIC ---
+    active: { type: Boolean, default: true }, // True = Linked, False = Unlinked (Soft Delete)
+    unlinkedAt: { type: Date } // Tracks when they unlinked it
 });
    
 const userSchema = new mongoose.Schema({
