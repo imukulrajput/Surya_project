@@ -177,7 +177,6 @@ export const getPendingSubmissions = async (req, res) => {
   }
 };
 
-
 export const getAllUsers = async (req, res) => {
     try {
         const { search } = req.query;
@@ -196,31 +195,32 @@ export const getAllUsers = async (req, res) => {
 
         // 2. Aggregation Pipeline (Join Users + PayoutMethods)
         const users = await User.aggregate([
-            { $match: matchStage }, // Filter users first
+            { $match: matchStage }, 
             {
                 $lookup: {
-                    from: "payoutmethods",       // The collection name in MongoDB (lowercase plural)
-                    localField: "_id",           // User's ID
-                    foreignField: "userId",      // The field in PayoutMethod
-                    as: "bankInfo"               // What we want to call it in the result
+                    from: "payoutmethods",       
+                    localField: "_id",          
+                    foreignField: "userId",      
+                    as: "bankInfo"               
                 }
             },
             {
                 $project: {
-                    password: 0,           // Hide sensitive data
-                    refreshToken: 0,
-                    forgotPasswordToken: 0,
-                    // Take the first item from the array (since users usually have 1 active method)
-                    bankDetails: { $arrayElemAt: ["$bankInfo", 0] },
+                    // FIX: Use ONLY inclusion. 
+                    // We simply DO NOT list password/tokens here, so they are automatically hidden.
+                    
+                    _id: 1, // Explicitly keep ID
                     fullName: 1,
                     email: 1,
                     walletBalance: 1,
                     linkedAccounts: 1,
                     role: 1,
-                    createdAt: 1
+                    createdAt: 1,
+                    // Computed field
+                    bankDetails: { $arrayElemAt: ["$bankInfo", 0] }
                 }
             },
-            { $sort: { createdAt: -1 } } // Show newest users first
+            { $sort: { createdAt: -1 } } 
         ]);
 
         return res.status(200).json({ users });
