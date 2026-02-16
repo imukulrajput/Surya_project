@@ -98,13 +98,13 @@ export const loginUser = async (req, res) => {
 
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id);
 
-    // --- THE FIX IS HERE ---
+   
     const options = { 
         httpOnly: true, 
         secure: true, 
-        sameSite: "None" // <--- YOU MUST ADD THIS
+        sameSite: "None" 
     };
-
+       
     return res
         .status(200)
         .cookie("accessToken", accessToken, options)
@@ -181,3 +181,54 @@ export const getAnnouncement = async (req, res) => {
         return res.status(500).json({ message: "Error fetching announcement" });
     }
 };   
+
+export const refreshAccessToken = async (req, res) => {
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+
+    if (!incomingRefreshToken) {
+        return res.status(401).json({ message: "Unauthorized request" });
+    }
+
+    try {
+        // 1. Verify the incoming token
+        const decodedToken = jwt.verify(
+            incomingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET
+        );
+
+        // 2. Find user & check if the token matches what is in the DB
+        // (This prevents reuse of old tokens if you are using rotation)
+        const user = await User.findById(decodedToken?._id);
+
+        if (!user) {
+            return res.status(401).json({ message: "Invalid refresh token" });
+        }
+
+        if (incomingRefreshToken !== user?.refreshToken) {
+            return res.status(401).json({ message: "Refresh token is expired or used" });
+        }
+
+        // 3. Generate NEW tokens (Rotation)
+        const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id);
+
+        // 4. Set Cookies
+        const options = {
+            httpOnly: true,
+            secure: true, 
+            sameSite: "None"
+        };
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", newRefreshToken, options) // Rotate the refresh token
+            .json({
+                accessToken,
+                refreshToken: newRefreshToken,
+                message: "Access token refreshed"
+            });
+
+    } catch (error) {
+        return res.status(401).json({ message: error?.message || "Invalid refresh token" });
+    }
+};

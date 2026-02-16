@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser, loginUser, forgotPassword  , resetPassword , getUserProfile ,  getAnnouncement , logoutUser} from "../controllers/auth.controller.js";
+import { registerUser, loginUser, forgotPassword  , resetPassword , getUserProfile ,  getAnnouncement , logoutUser , refreshAccessToken} from "../controllers/auth.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js"; 
 
 
@@ -15,5 +15,7 @@ router.post("/reset-password/:token", resetPassword);
 router.get("/me", verifyJWT, getUserProfile);
 
 router.get("/announcement", verifyJWT, getAnnouncement); 
+
+router.route("/refresh-token").post(refreshAccessToken)
 
 export default router;
