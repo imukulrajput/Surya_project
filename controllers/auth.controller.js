@@ -183,7 +183,7 @@ export const getAnnouncement = async (req, res) => {
 };   
 
 export const refreshAccessToken = async (req, res) => {
-    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken; 
 
     if (!incomingRefreshToken) {
         return res.status(401).json({ message: "Unauthorized request" });
