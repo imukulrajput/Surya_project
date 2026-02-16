@@ -58,11 +58,11 @@ export const createDailyBatch = async (req, res) => {
     const batchDate = getISTDateString(); 
 
     const rewardSetting = await SystemSetting.findOne({ key: "reward_per_task" });
-    const rewardAmount = rewardSetting ? Number(rewardSetting.value) : 2.5;
+    const globalDefault= rewardSetting ? Number(rewardSetting.value) : 2.5;
 
     const tasksWithDate = tasks.map(t => ({
       ...t,
-      rewardAmount, 
+      rewardAmount: t.rewardAmount ? Number(t.rewardAmount) : globalDefault, 
       batchDate,
       active: true
     }));
