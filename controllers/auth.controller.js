@@ -34,15 +34,23 @@ export const registerUser = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-    const options = {
-      httpOnly: true,
-      secure: true, // Set to true in production
-      sameSite: "None"
+    const accessOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        maxAge: 15 * 60 * 1000 
+    };
+
+    const refreshOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     };
 
     return res.status(201)
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
+      .cookie("accessToken", accessToken, accessOptions)
+      .cookie("refreshToken", refreshToken, refreshOptions)
       .json({
         user,
         accessToken,
@@ -99,16 +107,24 @@ export const loginUser = async (req, res) => {
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id);
 
    
-    const options = { 
-        httpOnly: true, 
-        secure: true, 
-        sameSite: "None" 
+ const accessOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        maxAge: 15 * 60 * 1000 // 15 minutes
     };
+
+    const refreshOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days <--- THIS WAS MISSING
+    }; 
        
     return res
         .status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
+        .cookie("accessToken", accessToken, accessOptions)
+        .cookie("refreshToken", refreshToken, refreshOptions)
         .json({ message: "Logged in successfully", accessToken });
 };
 
@@ -212,16 +228,24 @@ export const refreshAccessToken = async (req, res) => {
         const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id);
 
         // 4. Set Cookies
-        const options = {
-            httpOnly: true,
-            secure: true, 
-            sameSite: "None"
-        };
+       const accessOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        maxAge: 15 * 60 * 1000 
+    };
+
+    const refreshOptions = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "None",
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    }; 
 
         return res
             .status(200)
-            .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", newRefreshToken, options) // Rotate the refresh token
+            .cookie("accessToken", accessToken, accessOptions)
+            .cookie("refreshToken", newRefreshToken, refreshOptions) // Rotate the refresh token
             .json({
                 accessToken,
                 refreshToken: newRefreshToken,
