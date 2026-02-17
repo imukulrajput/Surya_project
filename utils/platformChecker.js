@@ -5,9 +5,11 @@ import * as cheerio from "cheerio";
 export const getHandleFromLink = async (url, platform) => {
     try {
         const cleanUrl = url.trim();
+        // --- FIX: Convert input platform to lowercase for matching ---
+        const p = platform ? platform.toLowerCase() : "";
 
         // --- MOJ (Regex - 100% Reliable) ---
-        if (platform === "Moj") {
+        if (p === "moj") {
             try {
                 const urlObj = new URL(cleanUrl);
                 const path = urlObj.pathname; 
@@ -20,7 +22,7 @@ export const getHandleFromLink = async (url, platform) => {
         }
 
         // --- SHARECHAT (Scraping) ---
-        if (platform === "ShareChat") {
+        if (p === "sharechat") {
             try {
                 const { data } = await axios.get(cleanUrl, {
                     headers: {
@@ -29,7 +31,7 @@ export const getHandleFromLink = async (url, platform) => {
                         'Accept-Language': 'en-US,en;q=0.9',
                         'Referer': 'https://www.google.com/'
                     },
-                    timeout: 4000 
+                    timeout: 5000 // Increased slightly to 5s for reliability
                 });
 
                 const $ = cheerio.load(data);
@@ -46,21 +48,24 @@ export const getHandleFromLink = async (url, platform) => {
                 if (!foundHandle) {
                     const jsonLd = $('script[type="application/ld+json"]').html();
                     if (jsonLd) {
-                        const jsonData = JSON.parse(jsonLd);
-                        if (jsonData.author && jsonData.author.url) {
-                            const parts = jsonData.author.url.split("/profile/");
-                            if (parts[1]) foundHandle = parts[1].split("/")[0];
-                        }
+                        try {
+                            const jsonData = JSON.parse(jsonLd);
+                            if (jsonData.author && jsonData.author.url) {
+                                const parts = jsonData.author.url.split("/profile/");
+                                if (parts[1]) foundHandle = parts[1].split("/")[0];
+                            }
+                        } catch(e) { /* ignore json parse error */ }
                     }
                 }
 
                 if (foundHandle) return { handle: foundHandle, status: 200 };
                 
-                // If we got 200 OK but couldn't find handle, it's likely a structure change or weird page
+                // If we got 200 OK but couldn't find handle, return success but null handle
+                // (This lets the controller log it as "Manual Review" instead of blocking user)
                 return { handle: null, status: 200 }; 
 
             } catch (error) {
-                // BUG FIX #6: Distinguish 404 from Blocked/Network Error
+                // BUG FIX: Distinguish 404 from Blocked/Network Error
                 if (error.response && error.response.status === 404) {
                     return { handle: null, status: 404 }; // Definitely a bad link
                 }
@@ -75,16 +80,20 @@ export const getHandleFromLink = async (url, platform) => {
     }
 };
 
-// Sync Helper (unchanged)
+// Sync Helper
 export const extractUsernameFromProfileUrl = (url, platform) => {
     try {
         const urlObj = new URL(url);
         const path = urlObj.pathname;
-        if (platform === "Moj") {
+        
+        // --- FIX: Normalize platform here too ---
+        const p = platform ? platform.toLowerCase() : "";
+
+        if (p === "moj") {
             const match = path.match(/@([a-zA-Z0-9_.]+)/);
             return match ? match[1] : null;
         }
-        if (platform === "ShareChat") {
+        if (p === "sharechat") {
             if (path.includes("/profile/")) {
                 const parts = path.split("/profile/");
                 return parts[1] ? parts[1].split("/")[0] : null;
