@@ -33,7 +33,7 @@ export const getDailyTasks = async (req, res) => {
     }
 
     // 2. Determine "Today's" Start Time
-    const startOfToday = getISTDateString(); // Ensure this helper is imported or defined
+    const startOfToday = getStartOfTodayIST(); // Ensure this helper is imported or defined
 
     let submissionMap = {}; 
     
@@ -47,7 +47,7 @@ export const getDailyTasks = async (req, res) => {
         userId: req.user._id, 
         linkedAccountId: accountId, 
         // If you want "Daily Reset", ensure you use the date filter here
-        createdAt: { $gte: new Date(new Date().setHours(0,0,0,0)) } 
+        createdAt: { $gte: startOfToday }
       }).select("taskId status adminComment"); // <--- Added adminComment selection
       
       submissions.forEach(sub => {
