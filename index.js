@@ -10,20 +10,7 @@ import supportRoutes from "./routes/support.routes.js"; // <--- ADD THIS
 import adminRoutes from "./routes/admin.routes.js"
 import walletRouter from "./routes/wallet.routes.js"
 
-// --- RUN THIS ONCE TO FIX THE DATABASE ---
-mongoose.connection.once('open', async () => {
-    try {
-        console.log("Checking for bad indexes...");
-        
-        // This command forces MongoDB to delete the "Forever Unique" rule
-        await mongoose.connection.collection('submissions').dropIndex('taskId_1_linkedAccountId_1');
-        
-        console.log("✅ SUCCESS: The bad index was deleted. Users can now repeat tasks daily!");
-    } catch (error) {
-        // If it says "index not found", that's good! It means it's already gone.
-        console.log("ℹ️ Index cleanup report:", error.message);
-    }
-});
+
 
 dotenv.config();
 const app = express();
