@@ -18,7 +18,9 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://surya-frontend-steel.vercel.app"
+    "https://surya-frontend-steel.vercel.app",
+    "https://myworkonline.in",
+    "https://www.myworkonline.in"
   ],
   credentials: true
 }));
