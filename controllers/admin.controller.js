@@ -318,7 +318,7 @@ export const updateSettings = async (req, res) => {
     try {
         const { key, value } = req.body;
         await SystemSetting.findOneAndUpdate(
-            { key },
+            { key },  
             { value },
             { upsert: true, new: true }
         );

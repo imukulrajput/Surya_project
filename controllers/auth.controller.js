@@ -225,7 +225,8 @@ export const refreshAccessToken = async (req, res) => {
         }
 
         // 3. Generate NEW tokens (Rotation)
-        const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id);
+        // 3. Generate NEW tokens (Rotation)
+       const { accessToken, refreshToken: newRefreshToken } = await generateAccessAndRefereshTokens(user._id);   
 
         // 4. Set Cookies
        const accessOptions = {
