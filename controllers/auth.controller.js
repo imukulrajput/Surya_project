@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { User } from "../models/user.model.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { SystemSetting } from "../models/SystemSetting.js";
+import jwt from "jsonwebtoken";
 
 
 const generateAccessAndRefereshTokens = async (userId) => {
@@ -225,8 +226,7 @@ export const refreshAccessToken = async (req, res) => {
         }
 
         // 3. Generate NEW tokens (Rotation)
-        // 3. Generate NEW tokens (Rotation)
-       const { accessToken, refreshToken: newRefreshToken } = await generateAccessAndRefereshTokens(user._id);   
+       const { accessToken, refreshToken: newRefreshToken } = await generateAccessAndRefereshTokens(user._id);
 
         // 4. Set Cookies
        const accessOptions = {
