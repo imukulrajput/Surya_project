@@ -49,11 +49,13 @@ export const registerUser = async (req, res) => {
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     };
 
+    const createdUser = await User.findById(user._id).select("-password -refreshToken");
+
     return res.status(201)
       .cookie("accessToken", accessToken, accessOptions)
       .cookie("refreshToken", refreshToken, refreshOptions)
       .json({
-        user,
+        user: createdUser,
         accessToken,
         refreshToken,
         message: "User registered and logged in successfully"
