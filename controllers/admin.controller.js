@@ -144,9 +144,11 @@ export const decideSubmission = async (req, res) => {
     if (decision === "Approved") {
       submission.status = "Approved";
       await submission.save();
+
+      const reward = submission.taskId ? submission.taskId.rewardAmount : 2; 
    
       await User.findByIdAndUpdate(submission.userId, {
-        $inc: { walletBalance: submission.taskId.rewardAmount }
+        $inc: { walletBalance: reward }
       });
     } else {
       submission.status = "Rejected";
