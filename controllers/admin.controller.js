@@ -361,3 +361,49 @@ export const exportWithdrawals = async (req, res) => {
         return res.status(500).json({ message: "Export failed" });
     }
 };
+
+// --- NEW: Bulk Decide Submissions ---
+export const bulkDecideSubmissions = async (req, res) => {
+  try {
+    const { submissionIds, decision, adminComment } = req.body;
+    
+    if (!Array.isArray(submissionIds) || submissionIds.length === 0) {
+        return res.status(400).json({ message: "No submissions selected" });
+    }
+
+    if (decision === "Approved") {
+      // Find all pending submissions that match the IDs
+      const submissions = await Submission.find({ 
+          _id: { $in: submissionIds }, 
+          status: "Pending" 
+      }).populate("taskId");
+
+      // Loop through and approve safely (ensures wallet balances update correctly)
+      for (const sub of submissions) {
+          sub.status = "Approved";
+          await sub.save();
+
+          const reward = sub.taskId ? sub.taskId.rewardAmount : 2; 
+          await User.findByIdAndUpdate(sub.userId, {
+              $inc: { walletBalance: reward }
+          });
+      }
+    } else {
+      // For rejections, we can do a massive bulk update instantly
+      await Submission.updateMany(
+          { _id: { $in: submissionIds }, status: "Pending" },
+          { 
+            $set: { 
+                status: "Rejected", 
+                adminComment: adminComment || "Bulk rejected by admin" 
+            } 
+          }
+      );
+    }
+
+    return res.status(200).json({ message: `Successfully ${decision} ${submissionIds.length} tasks.` });
+  } catch (error) {
+    console.error("Bulk Action Error:", error);
+    return res.status(500).json({ message: "Bulk action failed" });
+  }
+};

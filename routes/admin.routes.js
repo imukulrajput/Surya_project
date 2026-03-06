@@ -39,6 +39,6 @@ router.post("/announcement", Admin.updateAnnouncement)
 
 router.get("/withdrawals/export", Admin.exportWithdrawals) 
 
-
+router.post("/decide/bulk", Admin.bulkDecideSubmissions);  
 
 export default router;
