@@ -25,8 +25,7 @@ export const getDailyTasks = async (req, res) => {
   try { 
     const { accountId } = req.query;
     
-    // 1. Fetch ALL Active Tasks
-    const tasks = await Task.find({ active: true }).lean();
+    const tasks = await Task.find({ active: true, isDeleted: false }).lean();
 
     if (!tasks.length) {
       return res.status(200).json({ message: "No tasks available.", tasks: [] });

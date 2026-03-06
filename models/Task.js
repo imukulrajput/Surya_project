@@ -6,7 +6,8 @@ const taskSchema = new mongoose.Schema({
   caption: { type: String, required: true },
   rewardAmount: { type: Number, default: 2.5 }, 
   batchDate: { type: String, required: true, index: true }, 
-  active: { type: Boolean, default: true }
+  active: { type: Boolean, default: true },
+  isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
 export const Task = mongoose.model("Task", taskSchema);

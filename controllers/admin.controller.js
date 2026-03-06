@@ -77,25 +77,28 @@ export const createDailyBatch = async (req, res) => {
 export const getTasksByDate = async (req, res) => {
     try {
         const { date } = req.query;
-        let query = {};
+        // Default query: Only get tasks that are NOT deleted
+        let query = { isDeleted: false }; 
         
         if (date) {
             query.batchDate = date;
-        } else {
-            query.active = true;
-        }
+        } 
+        // If no date is provided, it fetches all non-deleted tasks for the admin panel
 
-        const tasks = await Task.find(query);
+        const tasks = await Task.find(query).sort({ createdAt: -1 });
         return res.status(200).json({ tasks });
     } catch (error) {
         return res.status(500).json({ message: "Fetch failed" });
     }
 };
-
 // --- NEW: Delete a Task ---
 export const deleteTask = async (req, res) => {
     try {
-        await Task.findByIdAndDelete(req.params.id);
+        // We set isDeleted to true AND active to false just to be safe
+        await Task.findByIdAndUpdate(req.params.id, { 
+            isDeleted: true, 
+            active: false 
+        });
         return res.status(200).json({ message: "Task deleted successfully" });
     } catch (error) {
         return res.status(500).json({ message: "Delete failed" });
