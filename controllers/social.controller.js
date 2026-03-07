@@ -49,6 +49,17 @@ export const verifySocialAccount = async (req, res) => {
             });
         }
 
+        // --- NEW: Fetch current user and check platform limits ---
+        const currentUser = await User.findById(req.user._id);
+        if (!currentUser) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        const activePlatformAccountsCount = currentUser.linkedAccounts.filter(
+            acc => acc.platform === platform && acc.active === true
+        ).length;
+
+
         // 1. Search for ANY existing account (Active or Inactive)
         const userWithAccount = await User.findOne({
             "linkedAccounts": {
@@ -77,6 +88,14 @@ export const verifySocialAccount = async (req, res) => {
 
             // CASE C: User owns it, it is INACTIVE (Re-linking logic)
             if (!account.active) {
+                // --- NEW: Block reactivation if they are at or over the limit ---
+                if (activePlatformAccountsCount >= 8) {
+                    return res.status(403).json({ 
+                        message: "Account Limit Reached",
+                        hint: `You can only have up to 8 active ${platform} accounts.`
+                    });
+                }
+
                 // --- FIX: USE IST DATE CHECK ---
                 const todayIST = getISTDate();
                 
@@ -115,6 +134,14 @@ export const verifySocialAccount = async (req, res) => {
         }
 
         // CASE D: Brand New Account (Push to Array)
+        // --- NEW: Block linking new accounts if they are at or over the limit ---
+        if (activePlatformAccountsCount >= 8) {
+            return res.status(403).json({ 
+                message: "Account Limit Reached",
+                hint: `You can only have up to 8 active ${platform} accounts.`
+            });
+        }
+
         await User.findByIdAndUpdate(req.user._id, {
             $push: {
                 linkedAccounts: {
