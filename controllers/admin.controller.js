@@ -166,21 +166,38 @@ export const decideSubmission = async (req, res) => {
 
 export const getPendingSubmissions = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, page = 1, limit = 50 } = req.query; // <-- ADDED PAGE & LIMIT
     
     // Default to "Pending" if no status is sent
     const queryStatus = status || "Pending";
 
+    // Calculate how many documents to skip
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch ONLY the requested page of data
     const submissions = await Submission.find({ status: queryStatus })
       .populate("userId", "fullName email")
       .populate("taskId", "title rewardAmount")
-      .sort({ updatedAt: -1 }); // Sort by most recently updated
+      .sort({ updatedAt: -1 })
+      .skip(skip)             // <-- ADDED SKIP
+      .limit(parseInt(limit)); // <-- ADDED LIMIT
 
-    return res.status(200).json({ submissions });
+    // Get total count for the frontend pagination math
+    const totalItems = await Submission.countDocuments({ status: queryStatus });
+    const totalPages = Math.ceil(totalItems / parseInt(limit));
+
+    // Return the new paginated object format
+    return res.status(200).json({ 
+        submissions,
+        totalItems,
+        totalPages,
+        currentPage: parseInt(page)
+    });
   } catch (error) {
     return res.status(500).json({ message: "Fetch submissions failed" });
   }
 };
+
 
 export const getAllUsers = async (req, res) => {
     try {
@@ -375,24 +392,51 @@ export const bulkDecideSubmissions = async (req, res) => {
     }
 
     if (decision === "Approved") {
-      // Find all pending submissions that match the IDs
+      // 1. Fetch ONLY the necessary data and use .lean() to save massive amounts of RAM
       const submissions = await Submission.find({ 
           _id: { $in: submissionIds }, 
           status: "Pending" 
-      }).populate("taskId");
+      })
+      .populate("taskId", "rewardAmount") // Only fetch rewardAmount
+      .lean(); // Returns plain JSON objects instead of heavy Mongoose documents
 
-      // Loop through and approve safely (ensures wallet balances update correctly)
-      for (const sub of submissions) {
-          sub.status = "Approved";
-          await sub.save();
-
-          const reward = sub.taskId ? sub.taskId.rewardAmount : 2; 
-          await User.findByIdAndUpdate(sub.userId, {
-              $inc: { walletBalance: reward }
-          });
+      if (submissions.length === 0) {
+          return res.status(400).json({ message: "No valid pending submissions found" });
       }
+
+      // 2. Mark all submissions as Approved in ONE fast database call
+      await Submission.updateMany(
+          { _id: { $in: submissionIds }, status: "Pending" },
+          { $set: { status: "Approved" } }
+      );
+
+      // 3. Group the rewards by User locally in memory
+      const userRewards = {};
+      for (const sub of submissions) {
+          const reward = sub.taskId ? sub.taskId.rewardAmount : 2;
+          const uId = sub.userId.toString();
+          
+          if (!userRewards[uId]) {
+              userRewards[uId] = 0;
+          }
+          userRewards[uId] += reward;
+      }
+
+      // 4. Create an array of bulk operations for the User model
+      const bulkUserOps = Object.keys(userRewards).map(userId => ({
+          updateOne: {
+              filter: { _id: userId },
+              update: { $inc: { walletBalance: userRewards[userId] } }
+          }
+      }));
+
+      // 5. Execute all user balance updates in ONE database call
+      if (bulkUserOps.length > 0) {
+          await User.bulkWrite(bulkUserOps);
+      }
+
     } else {
-      // For rejections, we can do a massive bulk update instantly
+      // Rejections are already perfectly optimized using updateMany!
       await Submission.updateMany(
           { _id: { $in: submissionIds }, status: "Pending" },
           { 
@@ -408,5 +452,58 @@ export const bulkDecideSubmissions = async (req, res) => {
   } catch (error) {
     console.error("Bulk Action Error:", error);
     return res.status(500).json({ message: "Bulk action failed" });
+  }
+};
+
+// --- NEW: Approve ALL Pending Tasks at Once ---
+export const approveAllPending = async (req, res) => {
+  try {
+    // 1. Fetch all pending submissions (using .lean() so it uses minimal RAM)
+    const submissions = await Submission.find({ status: "Pending" })
+      .populate("taskId", "rewardAmount")
+      .lean();
+
+    if (submissions.length === 0) {
+      return res.status(400).json({ message: "No pending tasks found to approve." });
+    }
+
+    // 2. Lock in the exact IDs we are processing to prevent race conditions
+    const pendingIds = submissions.map(sub => sub._id);
+
+    // 3. Group the rewards by User locally in memory
+    const userRewards = {};
+    for (const sub of submissions) {
+      const reward = sub.taskId ? sub.taskId.rewardAmount : 2;
+      const uId = sub.userId.toString();
+      
+      if (!userRewards[uId]) {
+        userRewards[uId] = 0;
+      }
+      userRewards[uId] += reward;
+    }
+
+    // 4. Create an array of bulk operations for the User model
+    const bulkUserOps = Object.keys(userRewards).map(userId => ({
+      updateOne: {
+        filter: { _id: userId },
+        update: { $inc: { walletBalance: userRewards[userId] } }
+      }
+    }));
+
+    // 5. Execute all user balance updates in ONE database call
+    if (bulkUserOps.length > 0) {
+      await User.bulkWrite(bulkUserOps);
+    }
+
+    // 6. Safely mark only the locked-in IDs as Approved
+    await Submission.updateMany(
+      { _id: { $in: pendingIds } },
+      { $set: { status: "Approved" } }
+    );
+
+    return res.status(200).json({ message: `Successfully approved ${pendingIds.length} tasks!` });
+  } catch (error) {
+    console.error("Approve All Error:", error);
+    return res.status(500).json({ message: "Failed to approve all tasks." });
   }
 };

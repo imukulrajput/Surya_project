@@ -41,4 +41,6 @@ router.get("/withdrawals/export", Admin.exportWithdrawals)
 
 router.post("/decide/bulk", Admin.bulkDecideSubmissions);  
 
+router.post('/decide/approve-all', Admin.approveAllPending); 
+
 export default router;
