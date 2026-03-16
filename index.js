@@ -22,7 +22,7 @@ app.use(cors({
     "https://myworkonline.in",
     "https://www.myworkonline.in"
   ],
-  credentials: true
+  credentials: true  
 }));
 
 

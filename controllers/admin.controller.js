@@ -166,27 +166,61 @@ export const decideSubmission = async (req, res) => {
 
 export const getPendingSubmissions = async (req, res) => {
   try {
-    const { status, page = 1, limit = 50 } = req.query; // <-- ADDED PAGE & LIMIT
+    const { status, page = 1, limit = 50, search, platform, date } = req.query;
     
-    // Default to "Pending" if no status is sent
+       
     const queryStatus = status || "Pending";
-
-    // Calculate how many documents to skip
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Fetch ONLY the requested page of data
-    const submissions = await Submission.find({ status: queryStatus })
+    
+    let query = { status: queryStatus };
+
+    
+    if (platform) {
+        query.platform = platform;
+    }
+
+
+    if (date) {
+        const startDate = new Date(date);
+        startDate.setUTCHours(0, 0, 0, 0);
+        
+        const endDate = new Date(date);
+        endDate.setUTCHours(23, 59, 59, 999);
+
+        query.createdAt = {
+            $gte: startDate,
+            $lte: endDate
+        };
+    }
+
+    
+    if (search) {
+    
+        const matchingUsers = await User.find({
+            $or: [
+                { fullName: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+            ]
+        }).select('_id').lean();
+
+        const userIds = matchingUsers.map(u => u._id);
+        
+        
+        query.userId = { $in: userIds };
+    }
+
+   
+    const submissions = await Submission.find(query)
       .populate("userId", "fullName email")
       .populate("taskId", "title rewardAmount")
       .sort({ updatedAt: -1 })
-      .skip(skip)             // <-- ADDED SKIP
-      .limit(parseInt(limit)); // <-- ADDED LIMIT
+      .skip(skip)
+      .limit(parseInt(limit));
 
-    // Get total count for the frontend pagination math
-    const totalItems = await Submission.countDocuments({ status: queryStatus });
+    const totalItems = await Submission.countDocuments(query);
     const totalPages = Math.ceil(totalItems / parseInt(limit));
 
-    // Return the new paginated object format
     return res.status(200).json({ 
         submissions,
         totalItems,
@@ -194,6 +228,7 @@ export const getPendingSubmissions = async (req, res) => {
         currentPage: parseInt(page)
     });
   } catch (error) {
+    console.error("Filter Error:", error);
     return res.status(500).json({ message: "Fetch submissions failed" });
   }
 };
