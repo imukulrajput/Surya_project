@@ -490,25 +490,53 @@ export const bulkDecideSubmissions = async (req, res) => {
   }
 };
 
-// --- NEW: Approve ALL Pending Tasks at Once ---
+// --- NEW: Approve ALL Pending Tasks (With Filters) ---
 export const approveAllPending = async (req, res) => {
   try {
-    // 1. Fetch all pending submissions (using .lean() so it uses minimal RAM)
-    const submissions = await Submission.find({ status: "Pending" })
+    // 1. Grab filters from the request body
+    const { search, platform, date } = req.body;
+
+    // 2. Build the exact same query used in getPendingSubmissions
+    let query = { status: "Pending" };
+
+    if (platform) query.platform = platform;
+
+    if (date) {
+        const startDate = new Date(date);
+        startDate.setUTCHours(0, 0, 0, 0);
+        const endDate = new Date(date);
+        endDate.setUTCHours(23, 59, 59, 999);
+        query.createdAt = { $gte: startDate, $lte: endDate };
+    }
+
+    if (search) {
+        const matchingUsers = await User.find({
+            $or: [
+                { fullName: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+            ]
+        }).select('_id').lean();
+
+        const userIds = matchingUsers.map(u => u._id);
+        query.userId = { $in: userIds };
+    }
+
+    // 3. Fetch matching pending submissions
+    const submissions = await Submission.find(query)
       .populate("taskId", "rewardAmount")
       .lean();
 
     if (submissions.length === 0) {
-      return res.status(400).json({ message: "No pending tasks found to approve." });
+      return res.status(400).json({ message: "No pending tasks found matching these filters." });
     }
 
-    // 2. Lock in the exact IDs we are processing to prevent race conditions
+    // 4. Lock in the exact IDs we are processing
     const pendingIds = submissions.map(sub => sub._id);
 
-    // 3. Group the rewards by User locally in memory
+    // 5. Group the rewards by User locally in memory
     const userRewards = {};
     for (const sub of submissions) {
-      const reward = sub.taskId ? sub.taskId.rewardAmount : 2;
+      const reward = sub.taskId ? sub.taskId.rewardAmount : 2; // Default to 2 if missing
       const uId = sub.userId.toString();
       
       if (!userRewards[uId]) {
@@ -517,7 +545,7 @@ export const approveAllPending = async (req, res) => {
       userRewards[uId] += reward;
     }
 
-    // 4. Create an array of bulk operations for the User model
+    // 6. Create an array of bulk operations for the User model
     const bulkUserOps = Object.keys(userRewards).map(userId => ({
       updateOne: {
         filter: { _id: userId },
@@ -525,20 +553,20 @@ export const approveAllPending = async (req, res) => {
       }
     }));
 
-    // 5. Execute all user balance updates in ONE database call
+    // 7. Execute all user balance updates in ONE database call
     if (bulkUserOps.length > 0) {
       await User.bulkWrite(bulkUserOps);
     }
 
-    // 6. Safely mark only the locked-in IDs as Approved
+    // 8. Safely mark only the locked-in IDs as Approved
     await Submission.updateMany(
       { _id: { $in: pendingIds } },
       { $set: { status: "Approved" } }
     );
 
-    return res.status(200).json({ message: `Successfully approved ${pendingIds.length} tasks!` });
+    return res.status(200).json({ message: `Successfully approved ${pendingIds.length} filtered tasks!` });
   } catch (error) {
     console.error("Approve All Error:", error);
-    return res.status(500).json({ message: "Failed to approve all tasks." });
+    return res.status(500).json({ message: "Failed to approve tasks." });
   }
 };
