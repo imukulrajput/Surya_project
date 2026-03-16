@@ -43,7 +43,7 @@ export const requestWithdrawal = async (req, res) => {
     const { amount, methodId } = req.body;
     const userId = req.user._id;
 
-    if (amount < 300) return res.status(400).json({ message: "Minimum withdrawal is ₹300" });
+    if (amount < 1000) return res.status(400).json({ message: "Minimum withdrawal is ₹1000" });
 
   
     const user = await User.findById(userId);
