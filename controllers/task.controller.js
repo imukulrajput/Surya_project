@@ -89,18 +89,16 @@ export const submitTask = async (req, res) => {
 
     // --- 1. DUPLICATE LINK CHECK (Global) ---
     // User cannot use the same link twice EVER (prevents spamming same video every day)
-    const linkAlreadyUsed = await Submission.findOne({
-        userId: req.user._id,
-        proofLink: proofLink,
-        taskId: { $ne: taskId } 
-    });
+  const linkAlreadyUsed = await Submission.findOne({
+        proofLink: proofLink
+    }).select('_id').lean();
 
     if (linkAlreadyUsed) {
         return res.status(400).json({ 
             message: "Duplicate Link Detected!",
-            detail: "You have already used this video link. Please upload a new video."
+            detail: "This video link has already been submitted. Please upload a new, unique video."
         });
-    }
+    }   
 
     // --- 2. DAILY LIMIT CHECK (Key Logic Change) ---
     const startOfToday = getStartOfTodayIST();
@@ -168,9 +166,19 @@ export const submitTask = async (req, res) => {
 
   } catch (error) {
     console.error("Submission Error:", error);
+    
+    // Check if it's a MongoDB Duplicate Key Error
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.proofLink) {
+        return res.status(400).json({ 
+            message: "Duplicate Link Detected!", 
+            detail: "This video link was already submitted." 
+        });
+    }
+
     return res.status(500).json({ message: "Submission failed." });
   }
-};
+
+}
 
 // ... getTaskHistory remains same
 export const getTaskHistory = async (req, res) => {

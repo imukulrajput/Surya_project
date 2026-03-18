@@ -7,7 +7,7 @@ const submissionSchema = new mongoose.Schema({
   linkedAccountId: { type: String, required: true }, 
   platform: { type: String, required: true },
   
-  proofLink: { type: String, required: true },
+  proofLink: { type: String, required: true , unique: true  },
   status: { 
     type: String, 
     enum: ["Pending", "Approved", "Rejected"], 
