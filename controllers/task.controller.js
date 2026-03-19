@@ -83,9 +83,14 @@ export const getDailyTasks = async (req, res) => {
 
 export const submitTask = async (req, res) => {
   try {
-    const { taskId, accountId, proofLink, platform } = req.body;
+    let{ taskId, accountId, proofLink, platform } = req.body;
 
     if (!proofLink || !accountId) return res.status(400).json({ message: "Missing data" });
+
+    if (platform && platform.toLowerCase() === 'moj') {
+        proofLink = proofLink.split('?')[0]; 
+     
+    }
 
     // --- 1. DUPLICATE LINK CHECK (Global) ---
     // User cannot use the same link twice EVER (prevents spamming same video every day)
