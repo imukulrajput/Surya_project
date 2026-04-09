@@ -373,15 +373,41 @@ export const updateTicketStatus = async (req, res) => {
 
 export const updateSettings = async (req, res) => {
     try {
-        const { key, value } = req.body;
+        const { key, value, applyToExisting } = req.body;
+        
         await SystemSetting.findOneAndUpdate(
             { key },  
             { value },
             { upsert: true, new: true }
         );
-        return res.status(200).json({ message: "Setting updated" });
+
+     
+        if (key === "reward_per_task" && applyToExisting) {
+            await Task.updateMany(
+                { isDeleted: false }, // Sirf active tasks ko update karenge
+                { $set: { rewardAmount: Number(value) } }
+            );
+        }
+
+        return res.status(200).json({ message: "Setting updated successfully" });
     } catch (error) {
+        console.error("Settings Update Error:", error);
         return res.status(500).json({ message: "Update failed" });
+    }
+};
+
+export const getSettings = async (req, res) => {
+    try {
+       
+        const rewardSetting = await SystemSetting.findOne({ key: "reward_per_task" });
+        const announcementSetting = await SystemSetting.findOne({ key: "global_announcement" });
+
+        return res.status(200).json({
+            reward: rewardSetting ? Number(rewardSetting.value) : 2.5,
+            announcement: announcementSetting ? announcementSetting.value : { message: "", isActive: false }
+        });
+    } catch (error) {
+        return res.status(500).json({ message: "Failed to fetch settings" });
     }
 };
 

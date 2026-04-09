@@ -87,9 +87,20 @@ export const submitTask = async (req, res) => {
 
     if (!proofLink || !accountId) return res.status(400).json({ message: "Missing data" });
 
+  
+
+    const urlRegex = /(https?:\/\/[^\s]+)/;
+    const urlMatch = proofLink.match(urlRegex);
+
+    if (urlMatch) {
+        proofLink = urlMatch[1]; 
+    } else {
+        // Agar string mein koi valid link hai hi nahi
+        return res.status(400).json({ message: "Please submit a valid video link." });
+    }
+
     if (platform && platform.toLowerCase() === 'moj') {
         proofLink = proofLink.split('?')[0]; 
-     
     }
 
     // --- 1. DUPLICATE LINK CHECK (Global) ---
@@ -185,7 +196,7 @@ export const submitTask = async (req, res) => {
 
 }
 
-// ... getTaskHistory remains same
+
 export const getTaskHistory = async (req, res) => {
     try {
       const history = await Submission.find({ userId: req.user._id })
